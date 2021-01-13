@@ -23,7 +23,7 @@ def label(image,**kw):
     """
     n, labels = cv2.connectedComponents(image.astype(uint8))
     #n, labels = cv2.connectedComponentsWithAlgorithm(image.astype(uint8), connectivity=4, ltype=2, ccltype=cv2.CCL_DEFAULT)
-    return labels, n
+    return labels, n-1
     # try: return measurements.label(image,**kw)
     # except: pass
     # types = ["int32","uint32","int64","uint64","int16","uint16"]
@@ -125,6 +125,20 @@ def rb_closing(image,size,origin=0):
     # image = rb_dilation(image,size,origin=0)
     # return rb_erosion(image,size,origin=-1)
 
+@checks(ABINARY2,ABINARY2)
+def rb_reconstruction(image,mask,step=1,maxsteps=None):
+    kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, (2*step+1,2*step+1))
+    dilated = image.astype(uint8)
+    while maxsteps is None or maxsteps > 0:
+        dilated = cv2.dilate(src=dilated, kernel=kernel)
+        cv2.bitwise_and(src1=dilated, src2=mask.astype(uint8), dst=dilated)
+        # did result change?
+        if (image == dilated).all():
+            return dilated
+        if maxsteps:
+            maxsteps -= step
+    return dilated
+    
 @checks(GRAYSCALE,uintpair)
 def rg_dilation(image,size,origin=0):
     """Grayscale dilation using fast OpenCV.dilate."""
@@ -188,6 +202,8 @@ def spread_labels(labels,maxdist=9999999):
     #distances,features = morphology.distance_transform_edt(labels==0,return_distances=1,return_indices=1)
     #indexes = features[0]*labels.shape[1]+features[1]
     #spread = labels.ravel()[indexes.ravel()].reshape(*labels.shape)
+    if not labels.any():
+        return labels
     distances,indexes = cv2.distanceTransformWithLabels(array(labels==0,uint8),cv2.DIST_L2,cv2.DIST_MASK_PRECISE,labelType=cv2.DIST_LABEL_PIXEL)
     spread = labels[where(labels>0)][indexes-1]
     spread *= (distances<maxdist)
